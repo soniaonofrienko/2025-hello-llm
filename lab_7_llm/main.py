@@ -31,6 +31,12 @@ class RawDataImporter(AbstractRawDataImporter):
     A class that imports the HuggingFace dataset.
     """
 
+    def __init__(self) -> None:
+        """
+        Initialize the importer without requiring hf_name.
+        """
+        pass
+
     @report_time
     def obtain(self) -> None:
         """

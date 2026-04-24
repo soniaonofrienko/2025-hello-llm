@@ -1,8 +1,8 @@
 {
   "parameters": {
-    "model": "",
-    "dataset": "",
-    "metrics": []
+    "model": "dmitry-vorobiev/rubert_ria_headlines",
+    "dataset": "trixdade/reviews_russian",
+    "metrics": ["rouge"]
   },
   "target_score": 4
 }

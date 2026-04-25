@@ -1,8 +1,8 @@
-pandas
-datasets
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.9.1
-transformers==4.50.3
-torchinfo
+datasets
 evaluate
 fastapi
+pandas
+torch==2.9.1
+torchinfo
+transformers==4.50.3

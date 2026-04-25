@@ -179,7 +179,7 @@ class LLMPipeline(AbstractLLMPipeline):
     def __init__(
         self, model_name: str, dataset: TaskDataset, max_length: int,
         batch_size: int, device: str
-        ) -> None:
+    ) -> None:
         """
         Initialize an instance.
 

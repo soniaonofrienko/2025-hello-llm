@@ -5,17 +5,18 @@ Starter for demonstration of laboratory work.
 import sys
 from pathlib import Path
 
+from core_utils.llm.time_decorator import report_time
+from core_utils.project.lab_settings import LabSettings
 from lab_7_llm.main import (
     LLMPipeline,
     RawDataImporter,
     RawDataPreprocessor,
     TaskDataset
 )
-from core_utils.llm.time_decorator import report_time
-from core_utils.project.lab_settings import LabSettings
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
 
 @report_time
 def main() -> None:

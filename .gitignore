@@ -70,6 +70,8 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+*.inv
+admin_utils/intersphinx/
 
 # PyBuilder
 .pybuilder/

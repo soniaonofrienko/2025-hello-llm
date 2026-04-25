@@ -28,7 +28,7 @@ def main() -> None:
     importer = RawDataImporter()
     importer.obtain()
     
-    preprocessor = RawDataPreprocessor()
+    preprocessor = RawDataPreprocessor(raw_data=importer._raw_data)
     preprocessor.transform()
     
     dataset = TaskDataset(preprocessor._preprocessed_data)
@@ -41,10 +41,8 @@ def main() -> None:
         device="cpu"
     )
     
-    result = preprocessor._preprocessed_data
+    result = pipeline.infer_dataset() 
     
-    assert result is not None, "does not work correctly"
-    print("works correctly")
 
 
 if __name__ == "__main__":

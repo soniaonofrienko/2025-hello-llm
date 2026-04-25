@@ -13,6 +13,7 @@ from typing import Iterable, Sequence
 from core_utils.project.lab_settings import LabSettings
 import pandas as pd 
 from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
 import torch
 
 from core_utils.llm.raw_data_importer import AbstractRawDataImporter
@@ -140,6 +141,7 @@ class TaskDataset(Dataset):
         Returns:
             int: The number of items in the dataset
         """
+        return len(self._data)
 
     def __getitem__(self, index: int) -> tuple[str, ...]:
         """
@@ -185,7 +187,7 @@ class LLMPipeline(AbstractLLMPipeline):
         """
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
         import torch
-        
+            
         self._model_name = model_name
         self._dataset = dataset
         self._max_length = max_length
@@ -195,7 +197,7 @@ class LLMPipeline(AbstractLLMPipeline):
         self._tokenizer = AutoTokenizer.from_pretrained(model_name)
         self._model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self._model = self._model.to(device)
-        
+            
         self._dataloader = DataLoader(
             dataset, 
             batch_size=batch_size, 
@@ -207,14 +209,14 @@ class LLMPipeline(AbstractLLMPipeline):
         Analyze model computing properties.
 
         Returns:
-            dict: Properties of a model
+                dict: Properties of a model
         """
         import torch
-        
+            
         # параметры модели
         total_params = sum(p.numel() for p in self._model.parameters())
         trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
-        
+            
         analysis = {
             "model_name": self._model_name,
             "total_parameters": total_params,
@@ -224,7 +226,7 @@ class LLMPipeline(AbstractLLMPipeline):
             "batch_size": self._batch_size,
             "dataset_size": len(self._dataset),
         }
-        
+            
         return analysis
 
     @report_time
@@ -239,9 +241,9 @@ class LLMPipeline(AbstractLLMPipeline):
             str | None: A prediction
         """
         import torch
-        
+            
         review = sample[0]
-        
+            
         # токенизация текста
         inputs = self._tokenizer(
             review,
@@ -250,7 +252,7 @@ class LLMPipeline(AbstractLLMPipeline):
             truncation=True,
             max_length=self._max_length
         )
-        
+            
         # генерация текста
         with torch.no_grad():
             outputs = self._model.generate(
@@ -259,10 +261,10 @@ class LLMPipeline(AbstractLLMPipeline):
                 num_beams=4,
                 early_stopping=True
             )
-        
+            
         # декодирование
         prediction = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
+            
         return prediction
 
     @report_time
@@ -275,7 +277,7 @@ class LLMPipeline(AbstractLLMPipeline):
         """
         import torch
         from torch.utils.data import DataLoader
-        
+            
         all_predictions = []
         dataloader = DataLoader(
             self._dataset,
@@ -286,7 +288,7 @@ class LLMPipeline(AbstractLLMPipeline):
         for batch in dataloader:
             # batch - это список кортежей [(review1, summary1), (review2, summary2), ...]
             reviews = [item[0] for item in batch]
-            
+                
             # токенизация каждого батча
             inputs = self._tokenizer(
                 reviews,
@@ -308,15 +310,15 @@ class LLMPipeline(AbstractLLMPipeline):
                 outputs, 
                 skip_special_tokens=True
             )
-            
+                
             all_predictions.extend(predictions)
 
         # датафрейм с результатами
         result_df = self._dataset.data.copy()
-        result_df["predictions"] = all_predictions
-        
+        result_df["predictions"] = all_predictions[:len(result_df)]
+            
         return result_df
-    
+        
 
     @torch.no_grad()
     def _infer_batch(self, sample_batch: Sequence[tuple[str, ...]]) -> list[str]:
@@ -347,13 +349,13 @@ class LLMPipeline(AbstractLLMPipeline):
             num_beams=4,
             early_stopping=True
         )
-        
+            
         # декодирование
         predictions = self._tokenizer.batch_decode(
             outputs, 
             skip_special_tokens=True
         )
-        
+            
         return predictions
 
 

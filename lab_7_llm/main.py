@@ -7,21 +7,22 @@ Working with Large Language Models.
 # pylint: disable=too-few-public-methods, undefined-variable, too-many-arguments, super-init-not-called
 import sys
 from pathlib import Path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 from typing import Iterable, Sequence
-from core_utils.project.lab_settings import LabSettings
-import pandas as pd 
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-import torch
 
+import pandas as pd
+import torch
+from torch.utils.data import DataLoader, Dataset
+
+from core_utils.llm.llm_pipeline import AbstractLLMPipeline
+from core_utils.llm.metrics import Metrics
 from core_utils.llm.raw_data_importer import AbstractRawDataImporter
 from core_utils.llm.raw_data_preprocessor import AbstractRawDataPreprocessor
-from core_utils.llm.llm_pipeline import AbstractLLMPipeline
 from core_utils.llm.task_evaluator import AbstractTaskEvaluator
 from core_utils.llm.time_decorator import report_time
-from core_utils.llm.metrics import Metrics
+from core_utils.project.lab_settings import LabSettings
+
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 current_path = Path(__file__).parent
 settings = LabSettings(current_path / "settings.json")

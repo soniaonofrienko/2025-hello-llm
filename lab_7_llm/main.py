@@ -4,7 +4,8 @@ Laboratory work.
 Working with Large Language Models.
 """
 
-# pylint: disable=too-few-public-methods, undefined-variable, too-many-arguments, super-init-not-called
+# pylint: disable=too-few-public-methods, undefined-variable,
+# too-many-arguments, super-init-not-called
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -47,9 +48,9 @@ class RawDataImporter(AbstractRawDataImporter):
         Raises:
             TypeError: In case of downloaded dataset is not pd.DataFrame
         """
-        from datasets import load_dataset
         import pandas as pd
-        
+        from datasets import load_dataset
+
         dataset_name = settings.parameters.dataset
         raw_data = load_dataset(dataset_name, split="train")
 
@@ -75,29 +76,30 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
         Returns:
             dict: Dataset key properties
         """
-        import pandas as pd
-        
+
         df = self._raw_data
-        
+
         analysis = {
             "num_samples": len(df),  # количество примеров
             "num_columns": len(df.columns),  # количество колонок
             "column_names": list(df.columns),  # названия колонок
             "missing_values": df.isnull().sum().to_dict(),  # пропуски
-            "dtypes": {str(col): str(dtype) for col, dtype in df.dtypes.items()},  # типы данных
+            # типы данных
+            "dtypes": {str(col): str(dtype) for col, dtype
+                       in df.dtypes.items()},
         }
-        
+
         # проверка на ошибки + добавляем статистику по длине текста
         if "Reviews" in df.columns:
             analysis["avg_review_length"] = df["Reviews"].str.len().mean()
             analysis["min_review_length"] = df["Reviews"].str.len().min()
             analysis["max_review_length"] = df["Reviews"].str.len().max()
-        
+
         if "Summary" in df.columns:
             analysis["avg_summary_length"] = df["Summary"].str.len().mean()
             analysis["min_summary_length"] = df["Summary"].str.len().min()
             analysis["max_summary_length"] = df["Summary"].str.len().max()
-        
+
         return analysis
 
     @report_time
@@ -105,18 +107,17 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
         """
         Apply preprocessing transformations to the raw dataset.
         """
-        import pandas as pd
-        
+
         df = self._raw_data.copy()
-        
+
         # пропуски
         df = df.dropna(subset=["Reviews", "Summary"])
-        
+
         # дубликаты и лишние пробелы
         df["Reviews"] = df["Reviews"].str.strip()
         df["Summary"] = df["Summary"].str.strip()
         df = df.drop_duplicates()
-        
+
         df = df.reset_index(drop=True)
         self._preprocessed_data = df
 
@@ -174,7 +175,8 @@ class LLMPipeline(AbstractLLMPipeline):
     """
 
     def __init__(
-        self, model_name: str, dataset: TaskDataset, max_length: int, batch_size: int, device: str
+        self, model_name: str, dataset: TaskDataset, max_length: int,
+        batch_size: int, device: str
     ) -> None:
         """
         Initialize an instance.
@@ -186,9 +188,8 @@ class LLMPipeline(AbstractLLMPipeline):
             batch_size (int): The size of the batch inside DataLoader
             device (str): The device for inference
         """
-        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-        import torch
-            
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
         self._model_name = model_name
         self._dataset = dataset
         self._max_length = max_length
@@ -198,10 +199,10 @@ class LLMPipeline(AbstractLLMPipeline):
         self._tokenizer = AutoTokenizer.from_pretrained(model_name)
         self._model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self._model = self._model.to(device)
-            
+
         self._dataloader = DataLoader(
-            dataset, 
-            batch_size=batch_size, 
+            dataset,
+            batch_size=batch_size,
             shuffle=False
         )
 
@@ -212,12 +213,11 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
                 dict: Properties of a model
         """
-        import torch
-            
         # параметры модели
         total_params = sum(p.numel() for p in self._model.parameters())
-        trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
-            
+        trainable_params = sum(p.numel() for p in self._model.parameters()
+                               if p.requires_grad)
+
         analysis = {
             "model_name": self._model_name,
             "total_parameters": total_params,
@@ -227,7 +227,7 @@ class LLMPipeline(AbstractLLMPipeline):
             "batch_size": self._batch_size,
             "dataset_size": len(self._dataset),
         }
-            
+
         return analysis
 
     @report_time
@@ -242,9 +242,9 @@ class LLMPipeline(AbstractLLMPipeline):
             str | None: A prediction
         """
         import torch
-            
+
         review = sample[0]
-            
+
         # токенизация текста
         inputs = self._tokenizer(
             review,
@@ -253,7 +253,7 @@ class LLMPipeline(AbstractLLMPipeline):
             truncation=True,
             max_length=self._max_length
         )
-            
+
         # генерация текста
         with torch.no_grad():
             outputs = self._model.generate(
@@ -262,10 +262,11 @@ class LLMPipeline(AbstractLLMPipeline):
                 num_beams=4,
                 early_stopping=True
             )
-            
+
         # декодирование
-        prediction = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
+        prediction = self._tokenizer.decode(
+            outputs[0], skip_special_tokens=True)
+
         return prediction
 
     @report_time
@@ -278,7 +279,7 @@ class LLMPipeline(AbstractLLMPipeline):
         """
         import torch
         from torch.utils.data import DataLoader
-            
+
         all_predictions = []
         dataloader = DataLoader(
             self._dataset,
@@ -287,9 +288,10 @@ class LLMPipeline(AbstractLLMPipeline):
         )
         # проход по батчам
         for batch in dataloader:
-            # batch - это список кортежей [(review1, summary1), (review2, summary2), ...]
+            # batch - это список кортежей [(review1, summary1), (review2,
+            # summary2), ...]
             reviews = [item[0] for item in batch]
-                
+
             # токенизация каждого батча
             inputs = self._tokenizer(
                 reviews,
@@ -308,21 +310,21 @@ class LLMPipeline(AbstractLLMPipeline):
                 )
             # декодирование
             predictions = self._tokenizer.batch_decode(
-                outputs, 
+                outputs,
                 skip_special_tokens=True
             )
-                
+
             all_predictions.extend(predictions)
 
         # датафрейм с результатами
         result_df = self._dataset.data.copy()
         result_df["predictions"] = all_predictions[:len(result_df)]
-            
+
         return result_df
-        
 
     @torch.no_grad()
-    def _infer_batch(self, sample_batch: Sequence[tuple[str, ...]]) -> list[str]:
+    def _infer_batch(
+            self, sample_batch: Sequence[tuple[str, ...]]) -> list[str]:
         """
         Infer model on a single batch.
 
@@ -332,7 +334,6 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             list[str]: Model predictions as strings
         """
-        import torch
         reviews = [item[0] for item in sample_batch]
 
         # токенизация
@@ -350,15 +351,14 @@ class LLMPipeline(AbstractLLMPipeline):
             num_beams=4,
             early_stopping=True
         )
-            
+
         # декодирование
         predictions = self._tokenizer.batch_decode(
-            outputs, 
+            outputs,
             skip_special_tokens=True
         )
-            
-        return predictions
 
+        return predictions
 
 
 class TaskEvaluator(AbstractTaskEvaluator):
@@ -377,8 +377,10 @@ class TaskEvaluator(AbstractTaskEvaluator):
 
     def run(self) -> dict:
         """
-        Evaluate the predictions against the references using the specified metric.
+        Evaluate the predictions against the references
+        using the specified metric.
 
         Returns:
-            dict: A dictionary containing information about the calculated metric
+            dict: A dictionary containing information
+            about the calculated metric
         """

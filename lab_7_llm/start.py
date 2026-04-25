@@ -1,17 +1,21 @@
 """
 Starter for demonstration of laboratory work.
 """
-
-# pylint: disable=too-many-locals, undefined-variable, unused-import
-from main import LLMPipeline, RawDataImporter, RawDataPreprocessor, TaskDataset
-from core_utils.project.lab_settings import LabSettings
-from core_utils.llm.time_decorator import report_time
+# pylint: disable=protected-access
 import sys
 from pathlib import Path
 
+from lab_7_llm.main import (
+    LLMPipeline,
+    RawDataImporter,
+    RawDataPreprocessor,
+    TaskDataset
+)
+from core_utils.llm.time_decorator import report_time
+from core_utils.project.lab_settings import LabSettings
+
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
 
 @report_time
 def main() -> None:

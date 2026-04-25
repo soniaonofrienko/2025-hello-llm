@@ -3,16 +3,17 @@ Laboratory work.
 
 Working with Large Language Models.
 """
-
 # pylint: disable=too-few-public-methods, undefined-variable,
-# too-many-arguments, super-init-not-called
+# too-many-arguments, super-init-not-called, useless-parent-delegation
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence
 
 import pandas as pd
 import torch
+from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from core_utils.llm.llm_pipeline import AbstractLLMPipeline
 from core_utils.llm.metrics import Metrics
@@ -38,7 +39,7 @@ class RawDataImporter(AbstractRawDataImporter):
         """
         Initialize the importer without requiring hf_name.
         """
-        pass
+        super().__init__(hf_name=settings.parameters.dataset)
 
     @report_time
     def obtain(self) -> None:
@@ -48,9 +49,6 @@ class RawDataImporter(AbstractRawDataImporter):
         Raises:
             TypeError: In case of downloaded dataset is not pd.DataFrame
         """
-        import pandas as pd
-        from datasets import load_dataset
-
         dataset_name = settings.parameters.dataset
         raw_data = load_dataset(dataset_name, split="train")
 
@@ -68,6 +66,10 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
     """
     A class that analyzes and preprocesses a dataset.
     """
+
+    def __init__(self, raw_data: pd.DataFrame) -> None:
+        super().__init__(raw_data)
+        self._preprocessed_data = None
 
     def analyze(self) -> dict:
         """
@@ -177,7 +179,7 @@ class LLMPipeline(AbstractLLMPipeline):
     def __init__(
         self, model_name: str, dataset: TaskDataset, max_length: int,
         batch_size: int, device: str
-    ) -> None:
+        ) -> None:
         """
         Initialize an instance.
 
@@ -188,8 +190,12 @@ class LLMPipeline(AbstractLLMPipeline):
             batch_size (int): The size of the batch inside DataLoader
             device (str): The device for inference
         """
-        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
+        super().__init__(
+            model_name=model_name,
+            dataset=dataset,
+            max_length=max_length,
+            batch_size=batch_size
+        )
         self._model_name = model_name
         self._dataset = dataset
         self._max_length = max_length
@@ -241,8 +247,6 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             str | None: A prediction
         """
-        import torch
-
         review = sample[0]
 
         # токенизация текста
@@ -277,9 +281,6 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             pd.DataFrame: Data with predictions
         """
-        import torch
-        from torch.utils.data import DataLoader
-
         all_predictions = []
         dataloader = DataLoader(
             self._dataset,
@@ -374,6 +375,10 @@ class TaskEvaluator(AbstractTaskEvaluator):
             data_path (pathlib.Path): Path to predictions
             metrics (Iterable[Metrics]): List of metrics to check
         """
+        super().__init__(
+            data_path=data_path,
+            metrics=metrics
+        )
 
     def run(self) -> dict:
         """

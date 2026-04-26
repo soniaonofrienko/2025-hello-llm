@@ -87,9 +87,9 @@ Datasets
          7. Other labels to label ``8``.
 
       9. Drop label ``8`` from ``target``.
-      10. Put ``target`` labels in order: ``1`` to ``0`` (joy), ``2`` to ``1``
+      10. Map ``target`` labels to sequential numbers: ``1`` to ``0`` (joy), ``2`` to ``1``
           (sadness), ``3`` to ``2`` (fear), ``4`` to ``3`` (anger), ``6`` to
-          ``4`` (neutral), ``7`` to ``5`` (other) and
+          ``4`` (neutral), ``7`` to ``5`` (other).
       11. Clean column ``source``.
       12. Reset indexes.
 
@@ -123,7 +123,7 @@ Datasets
    3. **Preprocess**:
 
       1. Select ``test`` split.
-      2. Rename column ``labels`` to ``target``.
+      2. Rename column ``label`` to ``target``.
       3. Rename column ``text`` to ``source``.
       4. Reset indexes.
 
@@ -149,7 +149,7 @@ Datasets
    2. **Rows**: 36591
    3. **Preprocess**:
 
-      1. Select ``validation`` split.
+      1. Select ``train`` split.
       2. Leave only ``content`` and ``grade3`` columns.
       3. Rename column ``grade3`` to ``target``.
       4. Rename column ``content`` to ``source``.
@@ -258,12 +258,17 @@ Supervised Fine-Tuning (SFT) Parameters
 ---------------------------------------
 
 .. note::
+   - Set the parameters ``fine_tuning_steps=150``, ``target_modules=["key"]`` for the
+     `tatiana-merz/turkic-cyrillic-classifier
+     <https://huggingface.co/tatiana-merz/turkic-cyrillic-classifier>`__
+     model as SFT parameters.
 
    - Set the parameter ``target_modules=["query", "key", "value", "dense"]``
      for the `XSY/albert-base-v2-imdb-calssification <https://hugging
      face.co/XSY/albert-base-v2-imdb-calssification>`__ model as SFT parameter.
 
-   - Set the parameter ``problem_type="single_label_classification"``
+   - Set the parameter ``problem_type="single_label_classification"``,
+     ``num_labels=6``
      for the `cointegrated/rubert-tiny2-cedr-emotion-detection <https://hugging
      face.co/cointegrated/rubert-tiny2-cedr-emotion-detection>`__ when
      initializing model instance. Set the parameters
@@ -271,7 +276,7 @@ Supervised Fine-Tuning (SFT) Parameters
      as its SFT parameters.
 
    - Set the parameters ``problem_type="single_label_classification"``,
-     ``num_labels=2``, ``ignore_mismatched_sizes=True``
+     ``num_labels=5``
      for the `OxAISH-AL-LLM/wiki_toxic dataset <https://hugging
      face.co/datasets/OxAISH-AL-LLM/wiki_toxic/viewer/default/validation>`__ when
      initializing `cointegrated/rubert-tiny-toxicity
@@ -281,3 +286,7 @@ Metrics
 -------
 
 -  F1-score
+
+.. important::
+
+    Use ``average = "micro"``.

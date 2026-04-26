@@ -10,8 +10,11 @@ from typing import Any
 from pydantic.dataclasses import dataclass
 from tqdm import tqdm
 
-from admin_utils.constants import DEVICE
-from admin_utils.references.get_model_analytics import get_references, save_reference
+try:
+    from transformers import set_seed
+except ImportError:
+    print('Library "transformers" not installed. Failed to import.')
+from admin_utils.constants import DEVICE, GLOBAL_SEED, QUANTIZATION_EXP
 from admin_utils.references.helpers import (
     collect_combinations,
     get_classification_models,
@@ -21,8 +24,8 @@ from admin_utils.references.helpers import (
     get_nmt_models,
     get_open_qa_models,
     get_summurization_models,
-    prepare_result_section,
 )
+from admin_utils.references.models import EvaluationReferencesModel, ReferenceScoresModel
 from core_utils.llm.metrics import Metrics
 from core_utils.project.lab_settings import InferenceParams
 
@@ -58,9 +61,6 @@ def get_task(model: str, main_params: MainParams, inference_params: InferencePar
     Returns:
         Any: Metric for a specific task
     """
-    if "test_" in model:
-        model = model.replace("test_", "")
-
     nmt_model = get_nmt_models()
     generation_model = get_generation_models()
     classification_models = get_classification_models()
@@ -91,6 +91,8 @@ def main() -> None:
     """
     Run collected reference scores.
     """
+    set_seed(GLOBAL_SEED)
+
     project_root = Path(__file__).parent.parent.parent
     references_dir = project_root / "admin_utils" / "references" / "gold"
     references_path = references_dir / "reference_scores.json"
@@ -107,25 +109,21 @@ def main() -> None:
         num_samples, max_length, batch_size, dist_dir / "result.csv", device
     )
 
-    references = get_references(path=references_path)
+    references = EvaluationReferencesModel.from_json(references_path).references
     combos = collect_combinations(references)
 
-    result = {}
+    output_model = ReferenceScoresModel()
     elements = list(enumerate(sorted(combos)))
     for _, (model_name, dataset_name, metrics) in tqdm(elements, total=len(elements)):
         print(model_name, dataset_name, metrics, flush=True)
 
-        prepare_result_section(result, model_name, dataset_name, metrics)
-
-        if "test_" in model_name:
-            inference_params.num_samples = 10
-
         main_params = MainParams(model_name, dataset_name, [Metrics(metric) for metric in metrics])
         inference_result = get_task(model_name, main_params, inference_params)
         for metric in metrics:
-            score = Decimal(inference_result[metric]).quantize(Decimal("1.00000"), ROUND_FLOOR)
-            result[model_name][dataset_name][metric] = score
-    save_reference(references_path, result)
+            score = Decimal(inference_result[metric]).quantize(QUANTIZATION_EXP, ROUND_FLOOR)
+            output_model.add(model_name, dataset_name, metric, score)
+
+    output_model.dump(references_path)
 
 
 if __name__ == "__main__":

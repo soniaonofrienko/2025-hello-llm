@@ -2,6 +2,8 @@
 Checks that the model is being analyzed correctly
 """
 
+# pylint: disable=import-error
+
 import unittest
 from pathlib import Path
 
@@ -41,7 +43,7 @@ def run_model_analysis_check(lab_path: Path, pipeline_class: type[AbstractLLMPip
     model_analysis = pipeline.analyze_model()
     references = ReferenceAnalysisScores(scores_type=ReferenceAnalysisScoresType.MODEL)
 
-    model_name = settings.parameters.model.replace("test_", "")
+    model_name = settings.parameters.model
 
     if references.get(model_name) != model_analysis:
         assert False, f"Model {settings.parameters.model} analysis is incorrect"

@@ -9,8 +9,12 @@ from pandas import DataFrame
 from pydantic.dataclasses import dataclass
 from tqdm import tqdm
 
-from admin_utils.constants import DEVICE
-from admin_utils.references.get_model_analytics import get_references, save_reference
+try:
+    from transformers import set_seed
+except ImportError:
+    print('Library "transformers" not installed. Failed to import.')
+
+from admin_utils.constants import DEVICE, GLOBAL_SEED
 from admin_utils.references.helpers import (
     get_classification_models,
     get_generation_models,
@@ -20,6 +24,7 @@ from admin_utils.references.helpers import (
     get_open_qa_models,
     get_summurization_models,
 )
+from admin_utils.references.models import EvaluationReferencesModel, InferenceReferencesModel
 
 from lab_7_llm.main import LLMPipeline, TaskDataset  # isort:skip
 from reference_lab_classification.main import ClassificationLLMPipeline  # isort:skip
@@ -101,9 +106,6 @@ def get_task(model: str, inference_params: InferenceParams, samples: list) -> di
     Returns:
         dict: Results with model predictions
     """
-    if "test_" in model:
-        model = model.replace("test_", "")
-
     nmt_model = get_nmt_models()
 
     generation_model = get_generation_models()
@@ -141,6 +143,8 @@ def main() -> None:
     """
     Run collected reference scores.
     """
+    set_seed(GLOBAL_SEED)
+
     references_dir = Path(__file__).parent / "gold"
     references_path = references_dir / "reference_inference_analytics.json"
 
@@ -156,16 +160,17 @@ def main() -> None:
         device=device,
         predictions_path=Path(),
     )
+    input_references = EvaluationReferencesModel.from_json(references_path).references
 
-    references = get_references(path=references_path)
-    result = {}
+    output_model = InferenceReferencesModel()
 
-    for model in tqdm(sorted(references)):
+    for model in tqdm(sorted(input_references)):
         print(model, flush=True)
-        predictions = get_task(model, inference_params, references[model])
-        result[model] = predictions
+        samples = input_references[model]
+        predictions = get_task(model, inference_params, samples)
+        output_model.add(model, predictions)
 
-    save_reference(references_path, result)
+    output_model.dump(references_path)
 
 
 if __name__ == "__main__":

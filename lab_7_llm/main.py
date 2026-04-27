@@ -5,13 +5,16 @@ Working with Large Language Models.
 """
 # pylint: disable=too-few-public-methods, undefined-variable,
 # too-many-arguments, super-init-not-called, useless-parent-delegation
+# protected-access, no-any-return
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence
 
+import evaluate
 import pandas as pd
 import torch
 from datasets import load_dataset
+from torchinfo import summary
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
@@ -35,11 +38,12 @@ class RawDataImporter(AbstractRawDataImporter):
     A class that imports the HuggingFace dataset.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, dataset_path: str | None = None) -> None:
         """
         Initialize the importer without requiring hf_name.
         """
-        super().__init__(hf_name=settings.parameters.dataset)
+        hf_name = dataset_path if dataset_path else settings.parameters.dataset
+        super().__init__(hf_name=hf_name)
 
     @report_time
     def obtain(self) -> None:
@@ -69,7 +73,7 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
 
     def __init__(self, raw_data: pd.DataFrame) -> None:
         super().__init__(raw_data)
-        self._preprocessed_data = None
+        self._preprocessed_data: pd.DataFrame | None = None
 
     def analyze(self) -> dict:
         """
@@ -180,6 +184,7 @@ class LLMPipeline(AbstractLLMPipeline):
         self, model_name: str, dataset: TaskDataset, max_length: int,
         batch_size: int, device: str
     ) -> None:
+        self._dataset: TaskDataset = dataset
         """
         Initialize an instance.
 
@@ -199,6 +204,7 @@ class LLMPipeline(AbstractLLMPipeline):
         self._model_name = model_name
         self._dataset = dataset
         self._max_length = max_length
+        self._input_max_length = 256
         self._batch_size = batch_size
         self._device = device
 
@@ -219,12 +225,39 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
                 dict: Properties of a model
         """
-        # параметры модели
-        total_params = sum(p.numel() for p in self._model.parameters())
-        trainable_params = sum(p.numel() for p in self._model.parameters()
-                               if p.requires_grad)
 
-        analysis = {
+        dummy_text = self._dataset[0][0]
+        dummy_inputs = self._tokenizer(
+            dummy_text,
+            return_tensors="pt"
+        ).to(self._device)
+
+        dummy_inputs["decoder_input_ids"] = dummy_inputs["input_ids"]
+
+        total_params = 0
+        trainable_params = 0
+
+        try:
+            if self._model is None:
+                raise RuntimeError("Model is not initialized")
+
+            model_stats = summary(
+                self._model,  # type: ignore[arg-type]
+                input_data=dummy_inputs,
+                device=self._device,
+                verbose=0
+            )
+
+            total_params = getattr(model_stats, 'total_params', 0)
+            trainable_params = getattr(model_stats,
+                                       'total_trainable_params', 0)
+        except (RuntimeError, AttributeError, TypeError) as e:
+            print(f"Note: torchinfo fallback due to model architecture ({e})")
+            total_params = sum(p.numel() for p in self._model.parameters())
+            trainable_params = sum(p.numel() for p in self._model.parameters()
+                                   if p.requires_grad)
+
+        return {
             "model_name": self._model_name,
             "total_parameters": total_params,
             "trainable_parameters": trainable_params,
@@ -233,8 +266,6 @@ class LLMPipeline(AbstractLLMPipeline):
             "batch_size": self._batch_size,
             "dataset_size": len(self._dataset),
         }
-
-        return analysis
 
     @report_time
     def infer_sample(self, sample: tuple[str, ...]) -> str | None:
@@ -255,7 +286,7 @@ class LLMPipeline(AbstractLLMPipeline):
             return_tensors="pt",
             padding=True,
             truncation=True,
-            max_length=self._max_length
+            max_length=self._input_max_length
         )
 
         # генерация текста
@@ -264,11 +295,14 @@ class LLMPipeline(AbstractLLMPipeline):
                 **inputs,
                 max_length=self._max_length,
                 num_beams=4,
+                repetition_penalty=1.5,
+                no_repeat_ngram_size=3,
+                length_penalty=1.0,
                 early_stopping=True
             )
 
         # декодирование
-        prediction = self._tokenizer.decode(
+        prediction: str = self._tokenizer.decode(
             outputs[0], skip_special_tokens=True)
 
         return prediction
@@ -298,7 +332,7 @@ class LLMPipeline(AbstractLLMPipeline):
                 reviews,
                 padding=True,
                 truncation=True,
-                max_length=self._max_length,
+                max_length=self._input_max_length,
                 return_tensors="pt"
             )
             # генерация для каждого батча
@@ -307,6 +341,9 @@ class LLMPipeline(AbstractLLMPipeline):
                     **inputs,
                     max_length=self._max_length,
                     num_beams=4,
+                    repetition_penalty=1.5,
+                    no_repeat_ngram_size=3,
+                    length_penalty=1.0,
                     early_stopping=True
                 )
             # декодирование
@@ -342,7 +379,7 @@ class LLMPipeline(AbstractLLMPipeline):
             reviews,
             padding=True,
             truncation=True,
-            max_length=self._max_length,
+            max_length=self._input_max_length,
             return_tensors="pt"
         )
         # генерация
@@ -350,11 +387,14 @@ class LLMPipeline(AbstractLLMPipeline):
             **inputs,
             max_length=self._max_length,
             num_beams=4,
+            repetition_penalty=1.5,
+            no_repeat_ngram_size=3,
+            length_penalty=1.0,
             early_stopping=True
         )
 
         # декодирование
-        predictions = self._tokenizer.batch_decode(
+        predictions: list[str] = self._tokenizer.batch_decode(
             outputs,
             skip_special_tokens=True
         )
@@ -379,6 +419,7 @@ class TaskEvaluator(AbstractTaskEvaluator):
             data_path=data_path,
             metrics=metrics
         )
+        self._metrics = metrics
 
     def run(self) -> dict:
         """
@@ -389,3 +430,29 @@ class TaskEvaluator(AbstractTaskEvaluator):
             dict: A dictionary containing information
             about the calculated metric
         """
+        df = pd.read_csv(self._data_path)
+
+        predictions = df["predictions"].tolist()
+        references = df["Summary"].tolist()
+
+        final_metrics = {}
+
+        for metric_name in self._metrics:
+            metric_str = (
+                metric_name.value
+                if hasattr(metric_name, 'value')
+                else str(metric_name)
+            )
+
+            if "rouge" in metric_str.lower():
+                rouge_metric = evaluate.load("rouge")
+
+                results = rouge_metric.compute(
+                    predictions=predictions,
+                    references=references,
+                    use_aggregator=True
+                )
+
+                final_metrics.update(results)
+
+        return final_metrics

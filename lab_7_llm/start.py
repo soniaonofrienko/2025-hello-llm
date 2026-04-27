@@ -17,9 +17,6 @@ from lab_7_llm.main import (
     TaskEvaluator
 )
 
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
 
 @report_time
 def main() -> None:

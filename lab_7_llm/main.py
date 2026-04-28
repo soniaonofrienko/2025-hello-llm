@@ -3,6 +3,8 @@ Laboratory work.
 
 Working with Large Language Models.
 """
+import random
+
 # pylint: disable=too-few-public-methods, undefined-variable,
 # too-many-arguments, super-init-not-called, useless-parent-delegation
 # protected-access, no-any-return
@@ -11,13 +13,12 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import evaluate
-import random
 import numpy as np
 import pandas as pd
 import torch
 from datasets import load_dataset
-from torchinfo import summary
 from torch.utils.data import DataLoader, Dataset
+from torchinfo import summary
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from core_utils.llm.llm_pipeline import AbstractLLMPipeline

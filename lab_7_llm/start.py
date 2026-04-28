@@ -57,7 +57,7 @@ def main() -> None:
     print(result.head())
     assert result is not None, "Demo does not work correctly"
 
-    output_path = current_path / "predictions.csv"
+    output_path = current_path.parent / "out" / "predictions.csv"
     result.to_csv(output_path, index=False)
     print(f"Saved predictions to {output_path}")
 

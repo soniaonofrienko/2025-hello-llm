@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import evaluate
+import random
+import numpy as np
 import pandas as pd
 import torch
 from datasets import load_dataset
@@ -86,25 +88,13 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
         df = self._raw_data
 
         analysis = {
-            "num_samples": len(df),  # количество примеров
-            "num_columns": len(df.columns),  # количество колонок
-            "column_names": list(df.columns),  # названия колонок
-            "missing_values": df.isnull().sum().to_dict(),  # пропуски
-            # типы данных
-            "dtypes": {str(col): str(dtype) for col, dtype
-                       in df.dtypes.items()},
+            "dataset_number_of_samples": len(df),
+            "dataset_columns": len(df.columns),
+            "dataset_duplicates": df.duplicated().sum(),
+            "dataset_empty_rows": df.isna().all(axis=1).sum(),
+            "dataset_sample_min_len": df["Reviews"].str.len().min(),
+            "dataset_sample_max_len": df["Reviews"].str.len().max(),
         }
-
-        # проверка на ошибки + добавляем статистику по длине текста
-        if "Reviews" in df.columns:
-            analysis["avg_review_length"] = df["Reviews"].str.len().mean()
-            analysis["min_review_length"] = df["Reviews"].str.len().min()
-            analysis["max_review_length"] = df["Reviews"].str.len().max()
-
-        if "Summary" in df.columns:
-            analysis["avg_summary_length"] = df["Summary"].str.len().mean()
-            analysis["min_summary_length"] = df["Summary"].str.len().min()
-            analysis["max_summary_length"] = df["Summary"].str.len().max()
 
         return analysis
 
@@ -204,7 +194,7 @@ class LLMPipeline(AbstractLLMPipeline):
         self._model_name = model_name
         self._dataset = dataset
         self._max_length = max_length
-        self._input_max_length = 256
+        self._input_max_length = 512
         self._batch_size = batch_size
         self._device = device
 
@@ -278,7 +268,7 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             str | None: A prediction
         """
-        review = sample[0]
+        review = sample[0].strip()  # Убираем лишние пробелы/переносы
 
         # токенизация текста
         inputs = self._tokenizer(
@@ -287,23 +277,30 @@ class LLMPipeline(AbstractLLMPipeline):
             padding=True,
             truncation=True,
             max_length=self._input_max_length
+        ).to(self._device)
+    
+        decoder_start_token_id = self._model.config.decoder_start_token_id
+        if decoder_start_token_id is None:
+            decoder_start_token_id = self._tokenizer.pad_token_id
+        
+        inputs["decoder_input_ids"] = torch.tensor(
+            [[decoder_start_token_id]], 
+            device=self._device
         )
-
+    
         # генерация текста
         with torch.no_grad():
             outputs = self._model.generate(
                 **inputs,
-                max_length=self._max_length,
+                max_new_tokens=self._max_length,
                 num_beams=4,
-                repetition_penalty=1.5,
-                no_repeat_ngram_size=3,
-                length_penalty=1.0,
-                early_stopping=True
+                early_stopping=True,
+                do_sample=False
             )
 
         # декодирование
         prediction: str = self._tokenizer.decode(
-            outputs[0], skip_special_tokens=True)
+            outputs[0], skip_special_tokens=True).strip()
 
         return prediction
 
@@ -323,11 +320,12 @@ class LLMPipeline(AbstractLLMPipeline):
         )
         # проход по батчам
         for batch in dataloader:
-            # batch - это список кортежей [(review1, summary1), (review2,
-            # summary2), ...]
             reviews = [item[0] for item in batch]
+            
+            torch.manual_seed(42)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(42)
 
-            # токенизация каждого батча
             inputs = self._tokenizer(
                 reviews,
                 padding=True,
@@ -335,17 +333,14 @@ class LLMPipeline(AbstractLLMPipeline):
                 max_length=self._input_max_length,
                 return_tensors="pt"
             )
-            # генерация для каждого батча
+            
             with torch.no_grad():
                 outputs = self._model.generate(
                     **inputs,
-                    max_length=self._max_length,
-                    num_beams=4,
-                    repetition_penalty=1.5,
-                    no_repeat_ngram_size=3,
-                    length_penalty=1.0,
-                    early_stopping=True
+                    max_new_tokens=self._max_length,
+                    do_sample=False
                 )
+                
             # декодирование
             predictions = self._tokenizer.batch_decode(
                 outputs,
@@ -385,8 +380,8 @@ class LLMPipeline(AbstractLLMPipeline):
         # генерация
         outputs = self._model.generate(
             **inputs,
-            max_length=self._max_length,
-            num_beams=4,
+            max_new_tokens=self._max_length,
+            num_beams=1,
             repetition_penalty=1.5,
             no_repeat_ngram_size=3,
             length_penalty=1.0,

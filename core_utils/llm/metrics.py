@@ -12,6 +12,7 @@ class Metrics(enum.Enum):
 
     BLEU = "bleu"
     ROUGE = "rouge"
+    ROUGE_L = "rougeL"
     SQUAD = "squad"
     F1 = "f1"
     PRECISION = "precision"

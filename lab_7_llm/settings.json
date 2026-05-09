@@ -2,7 +2,10 @@
   "parameters": {
     "model": "dmitry-vorobiev/rubert_ria_headlines",
     "dataset": "trixdade/reviews_russian",
-    "metrics": ["rouge"]
+    "metrics": ["rougeL"],
+    "lora_config": {
+       "target_modules": ["query", "key", "value", "dense"]
+    }
   },
   "target_score": 4
 }

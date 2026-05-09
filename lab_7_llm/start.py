@@ -5,6 +5,9 @@ Starter for demonstration of laboratory work.
 import sys
 from pathlib import Path
 
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from core_utils.llm.metrics import Metrics
 from core_utils.llm.time_decorator import report_time
 from core_utils.project.lab_settings import LabSettings
@@ -56,9 +59,9 @@ def main() -> None:
     print(result.head())
     assert result is not None, "Demo does not work correctly"
 
-    output_path = current_path.parent / "out" / "predictions.csv"
-    result.to_csv(output_path, index=False)
-    print(f"Saved predictions to {output_path}")
+    output_path = current_path / "dist" / "predictions.csv"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    result.to_csv(output_path, index=False, encoding='utf-8-sig')
 
     metrics_to_check = [Metrics(m) for m in settings.parameters.metrics]
 

@@ -1,6 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 absl-py==2.4.0
-datasets
+datasets==2.18.0
 evaluate
 fastapi
 nltk

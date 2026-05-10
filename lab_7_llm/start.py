@@ -4,6 +4,7 @@ Starter for demonstration of laboratory work.
 # pylint: disable=protected-access
 # import sys
 from pathlib import Path
+
 from core_utils.llm.metrics import Metrics
 from core_utils.llm.time_decorator import report_time
 from core_utils.project.lab_settings import LabSettings

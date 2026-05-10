@@ -7,9 +7,12 @@ Working with Large Language Models.
 # pylint: disable=too-few-public-methods, undefined-variable,
 # too-many-arguments, super-init-not-called, useless-parent-delegation
 # protected-access, no-any-return
-# import sys
+import sys
 from pathlib import Path
 from typing import Iterable, Sequence
+
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 import evaluate
 import pandas as pd
@@ -30,8 +33,8 @@ from core_utils.project.lab_settings import LabSettings
 # project_root = Path(__file__).parent.parent
 # sys.path.insert(0, str(project_root))
 
-# current_path = Path(__file__).parent
-# settings = LabSettings(current_path / "settings.json")
+current_path = Path(__file__).parent
+settings = LabSettings(current_path / "settings.json")
 
 
 class RawDataImporter(AbstractRawDataImporter):

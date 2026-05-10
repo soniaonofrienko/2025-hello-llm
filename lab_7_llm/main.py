@@ -3,7 +3,6 @@ Laboratory work.
 
 Working with Large Language Models.
 """
-import random
 
 # pylint: disable=too-few-public-methods, undefined-variable,
 # too-many-arguments, super-init-not-called, useless-parent-delegation
@@ -13,7 +12,6 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import evaluate
-import numpy as np
 import pandas as pd
 import torch
 from datasets import load_dataset
@@ -273,49 +271,10 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             str | None: A prediction
         """
-        # torch.manual_seed(42)
-        # if torch.cuda.is_available():
-        #     torch.cuda.manual_seed_all(42)
-        
-        # review = sample[0].strip()  # Убираем лишние пробелы/переносы
-
-        # # токенизация текста
-        # inputs = self._tokenizer(
-        #     review,
-        #     return_tensors="pt",
-        #     padding=True,
-        #     truncation=True,
-        #     max_length=self._input_max_length
-        # ).to(self._device)
-    
-        # decoder_start_token_id = self._model.config.decoder_start_token_id
-        # if decoder_start_token_id is None:
-        #     decoder_start_token_id = self._tokenizer.pad_token_id
-        
-        # inputs["decoder_input_ids"] = torch.tensor(
-        #     [[decoder_start_token_id]], 
-        #     device=self._device
-        # )
-    
-        # # генерация текста
-        # with torch.no_grad():
-        #     outputs = self._model.generate(
-        #         **inputs,
-        #         max_new_tokens=self._max_length,
-        #         num_beams=4,
-        #         early_stopping=True,
-        #         do_sample=False
-        #     )
-
-        # # декодирование
-        # prediction: str = self._tokenizer.decode(
-        #     outputs[0], skip_special_tokens=True).strip()
-
-        # return prediction
 
         if not self._model or not self._tokenizer:
             return None
-        
+
         return self._infer_batch([sample])[0]
 
     @report_time
@@ -327,46 +286,11 @@ class LLMPipeline(AbstractLLMPipeline):
             pd.DataFrame: Data with predictions
         """
         all_predictions = []
-        # dataloader = DataLoader(
-        #     self._dataset,
-        #     batch_size=self._batch_size,
-        #     shuffle=False
-        # )
-        # # проход по батчам
-        # for batch in dataloader:
-        #     reviews = [item[0] for item in batch]
-            
-        #     torch.manual_seed(42)
-        #     if torch.cuda.is_available():
-        #         torch.cuda.manual_seed_all(42)
-
-        #     inputs = self._tokenizer(
-        #         reviews,
-        #         padding=True,
-        #         truncation=True,
-        #         max_length=self._input_max_length,
-        #         return_tensors="pt"
-        #     )
-            
-        #     with torch.no_grad():
-        #         outputs = self._model.generate(
-        #             **inputs,
-        #             max_new_tokens=self._max_length,
-        #             do_sample=False
-        #         )
-                
-        #     # декодирование
-        #     predictions = self._tokenizer.batch_decode(
-        #         outputs,
-        #         skip_special_tokens=True
-        #     )
-
-        #     all_predictions.extend(predictions)
 
         for batch in self._dataloader:
             predictions = self._infer_batch(batch)
             all_predictions.extend(predictions)
-    
+
         result_df = self._dataset.data.copy()
         result_df["predictions"] = all_predictions[:len(result_df)]
 
@@ -384,10 +308,10 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             list[str]: Model predictions as strings
         """
-        torch.manual_seed(42)  # ← для воспроизводимости
+        torch.manual_seed(42)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(42)
-        
+
         reviews = [item[0] for item in sample_batch]
 
         # токенизация
@@ -403,9 +327,6 @@ class LLMPipeline(AbstractLLMPipeline):
             **inputs,
             max_new_tokens=self._max_length,
             num_beams=4,
-            # repetition_penalty=1.5,
-            # no_repeat_ngram_size=3,
-            # length_penalty=1.0,
             early_stopping=True
         )
 

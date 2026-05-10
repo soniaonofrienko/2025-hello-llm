@@ -5,8 +5,8 @@ Starter for demonstration of laboratory work.
 import sys
 from pathlib import Path
 
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+# project_root = Path(__file__).parent.parent
+# sys.path.insert(0, str(project_root))
 
 from core_utils.llm.metrics import Metrics
 from core_utils.llm.time_decorator import report_time

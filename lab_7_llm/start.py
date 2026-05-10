@@ -2,12 +2,8 @@
 Starter for demonstration of laboratory work.
 """
 # pylint: disable=protected-access
-import sys
+# import sys
 from pathlib import Path
-
-# project_root = Path(__file__).parent.parent
-# sys.path.insert(0, str(project_root))
-
 from core_utils.llm.metrics import Metrics
 from core_utils.llm.time_decorator import report_time
 from core_utils.project.lab_settings import LabSettings

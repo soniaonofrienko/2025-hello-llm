@@ -214,7 +214,7 @@ class LLMPipeline(AbstractLLMPipeline):
         config = self._model.config
         
         vocab_size = len(self._tokenizer) if hasattr(self._tokenizer, '__len__') else config.vocab_size
-        embedding_size = config.hidden_size if hasattr(config, 'hidden_size') else 0
+        embedding_size = config.encoder.hidden_size if hasattr(config, 'encoder') and hasattr(config.encoder, 'hidden_size') else 0
         max_context_length = config.max_position_embeddings if hasattr(config, 'max_position_embeddings') else 512
 
         # try:
@@ -234,16 +234,63 @@ class LLMPipeline(AbstractLLMPipeline):
         #     total_params = sum(p.numel() for p in self._model.parameters())
         #     trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
 
-        total_params = sum(p.numel() for p in self._model.parameters())
-        trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
+        # total_params = sum(p.numel() for p in self._model.parameters())
+        # trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
 
+        # return {
+        #     "input_shape": [1, self._input_max_length],
+        #     "embedding_size": int(embedding_size),
+        #     "output_shape": [1, self._max_length],
+        #     "num_trainable_params": int(trainable_params),
+        #     "vocab_size": int(vocab_size),
+        #     "size": int(total_params),
+        #     "max_context_length": int(max_context_length),
+        # }
+        
+        if self._model is None:
+            return {}
+    
+        from torchinfo import summary
+        from torch.nn import Module
+        
+        if hasattr(self._model.config, 'max_position_embeddings'):
+            max_context_length = self._model.config.max_position_embeddings
+        elif hasattr(self._model.config, 'encoder'):
+            max_context_length = self._model.config.encoder.max_position_embeddings
+        else:
+            max_context_length = 512
+        
+        input_ids = torch.ones((1, max_context_length), dtype=torch.long)
+        attention_mask = torch.ones((1, max_context_length), dtype=torch.long)
+        decoder_input_ids = torch.ones((1, max_context_length), dtype=torch.long)
+        
+        tokens = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "decoder_input_ids": decoder_input_ids
+        }
+        
+        statistics_summary = summary(
+            self._model,
+            input_data=tokens,
+            device=self._device,
+            verbose=0
+        )
+        
+        if hasattr(self._model.config, 'encoder'):
+            embedding_size = self._model.config.encoder.hidden_size
+        elif hasattr(self._model.config, 'hidden_size'):
+            embedding_size = self._model.config.hidden_size
+        else:
+            embedding_size = 768
+        
         return {
-            "input_shape": [1, self._input_max_length],
+            "input_shape": [1, max_context_length],
             "embedding_size": int(embedding_size),
             "output_shape": [1, self._max_length],
-            "num_trainable_params": int(trainable_params),
+            "num_trainable_params": int(statistics_summary.trainable_params),
             "vocab_size": int(vocab_size),
-            "size": int(total_params),
+            "size": int(statistics_summary.total_params),
             "max_context_length": int(max_context_length),
         }
 

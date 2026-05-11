@@ -7,7 +7,7 @@ Working with Large Language Models.
 # pylint: disable=too-few-public-methods, undefined-variable,
 # too-many-arguments, super-init-not-called, useless-parent-delegation
 # protected-access, no-any-return
-# import sys
+
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -26,9 +26,6 @@ from core_utils.llm.raw_data_preprocessor import AbstractRawDataPreprocessor
 from core_utils.llm.task_evaluator import AbstractTaskEvaluator
 from core_utils.llm.time_decorator import report_time
 from core_utils.project.lab_settings import LabSettings
-
-# project_root = Path(__file__).parent.parent
-# sys.path.insert(0, str(project_root))
 
 current_path = Path(__file__).parent
 settings = LabSettings(current_path / "settings.json")
@@ -55,7 +52,7 @@ class RawDataImporter(AbstractRawDataImporter):
             TypeError: In case of downloaded dataset is not pd.DataFrame
         """
         dataset_name = settings.parameters.dataset
-        raw_data = load_dataset(dataset_name, split="test")
+        raw_data = load_dataset(dataset_name, split="train")
 
         if hasattr(raw_data, "to_pandas"):
             self._raw_data = raw_data.to_pandas()
@@ -84,15 +81,19 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
             dict: Dataset key properties
         """
 
-        df = self._raw_data
+        df = self._preprocessed_data if self._preprocessed_data is not None else self._raw_data
+
+        text_column = "Reviews" if "Reviews" in df.columns else (
+            "source" if "source" in df.columns else df.columns[0]
+            )
 
         analysis = {
-            "dataset_number_of_samples": len(df),
-            "dataset_columns": len(df.columns),
-            "dataset_duplicates": df.duplicated().sum(),
-            "dataset_empty_rows": df.isna().all(axis=1).sum(),
-            "dataset_sample_min_len": df["Reviews"].str.len().min(),
-            "dataset_sample_max_len": df["Reviews"].str.len().max(),
+            "dataset_number_of_samples": int(len(df)),
+            "dataset_columns": int(len(df.columns)),
+            "dataset_duplicates": int(df.duplicated().sum()),
+            "dataset_empty_rows": int(df.isna().all(axis=1).sum()),
+            "dataset_sample_min_len": int(df[text_column].str.len().min()) if text_column in df.columns else 0,
+            "dataset_sample_max_len": int(df[text_column].str.len().max()) if text_column in df.columns else 0,
         }
 
         return analysis
@@ -175,7 +176,7 @@ class LLMPipeline(AbstractLLMPipeline):
         self, model_name: str, dataset: TaskDataset, max_length: int,
         batch_size: int, device: str
     ) -> None:
-        self._dataset: TaskDataset = dataset
+        
         """
         Initialize an instance.
 
@@ -192,6 +193,7 @@ class LLMPipeline(AbstractLLMPipeline):
             max_length=max_length,
             batch_size=batch_size
         )
+        self._dataset: TaskDataset = dataset
         self._model_name = model_name
         self._dataset = dataset
         self._max_length = max_length
@@ -203,7 +205,6 @@ class LLMPipeline(AbstractLLMPipeline):
         self._model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self._model = self._model.to(device)
         self._model.eval()
-        self._model.generation_config.max_length = self._max_length
 
         self._dataloader = DataLoader(
             dataset,
@@ -219,7 +220,10 @@ class LLMPipeline(AbstractLLMPipeline):
                 dict: Properties of a model
         """
 
-        dummy_text = self._dataset[0][0]
+        if isinstance(self._dataset, TaskDataset):
+            dummy_text = self._dataset[0][0]
+        else:
+            dummy_text = "dummy text"
         dummy_inputs = self._tokenizer(
             dummy_text,
             return_tensors="pt"
@@ -251,13 +255,13 @@ class LLMPipeline(AbstractLLMPipeline):
                                    if p.requires_grad)
 
         return {
-            "model_name": self._model_name,
-            "total_parameters": total_params,
-            "trainable_parameters": trainable_params,
-            "device": self._device,
-            "max_length": self._max_length,
-            "batch_size": self._batch_size,
-            "dataset_size": len(self._dataset),
+            "model_name": str(self._model_name),
+            "total_parameters": int(total_params),
+            "trainable_parameters": int(trainable_params),
+            "device": str(self._device),
+            "max_length": int(self._max_length),
+            "batch_size": int(self._batch_size),
+            "dataset_size": int(len(self._dataset)) if hasattr(self._dataset, '__len__') else 0,
         }
 
     @report_time
@@ -314,7 +318,6 @@ class LLMPipeline(AbstractLLMPipeline):
 
         reviews = [item[0] for item in sample_batch]
 
-        # токенизация
         inputs = self._tokenizer(
             reviews,
             padding=True,
@@ -322,7 +325,7 @@ class LLMPipeline(AbstractLLMPipeline):
             max_length=self._input_max_length,
             return_tensors="pt"
         ).to(self._device)
-        # генерация
+
         outputs = self._model.generate(
             **inputs,
             max_new_tokens=self._max_length,
@@ -330,7 +333,6 @@ class LLMPipeline(AbstractLLMPipeline):
             early_stopping=True
         )
 
-        # декодирование
         predictions: list[str] = self._tokenizer.batch_decode(
             outputs,
             skip_special_tokens=True
@@ -389,6 +391,7 @@ class TaskEvaluator(AbstractTaskEvaluator):
                     references=references,
                 )
 
-                final_metrics["rougeL"] = results.get("rougeL", 0.0)
+                final_metrics[metric_str] = float(results["rougeL"])
 
+        print(f"Final metrics: {final_metrics}")
         return final_metrics

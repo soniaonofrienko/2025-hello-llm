@@ -217,22 +217,25 @@ class LLMPipeline(AbstractLLMPipeline):
         embedding_size = config.hidden_size if hasattr(config, 'hidden_size') else 0
         max_context_length = config.max_position_embeddings if hasattr(config, 'max_position_embeddings') else 512
 
-        try:
-            from torchinfo import summary
-            dummy_input = torch.ones(1, self._input_max_length, dtype=torch.long).to(self._device)
+        # try:
+        #     from torchinfo import summary
+        #     dummy_input = torch.ones(1, self._input_max_length, dtype=torch.long).to(self._device)
             
-            model_stats = summary(
-                self._model,
-                input_data=dummy_input,
-                device=self._device,
-                verbose=0,
-            )
-            total_params = model_stats.total_params
-            trainable_params = model_stats.trainable_params
-        except (RuntimeError, ValueError, AttributeError, TypeError) as e:
-            print(f"Note: torchinfo fallback due to model architecture,{e}")
-            total_params = sum(p.numel() for p in self._model.parameters())
-            trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
+        #     model_stats = summary(
+        #         self._model,
+        #         input_data=dummy_input,
+        #         device=self._device,
+        #         verbose=0,
+        #     )
+        #     total_params = model_stats.total_params
+        #     trainable_params = model_stats.trainable_params
+        # except (RuntimeError, ValueError, AttributeError, TypeError) as e:
+        #     print(f"Note: torchinfo fallback due to model architecture,{e}")
+        #     total_params = sum(p.numel() for p in self._model.parameters())
+        #     trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
+
+        total_params = sum(p.numel() for p in self._model.parameters())
+        trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
 
         return {
             "input_shape": [1, self._input_max_length],

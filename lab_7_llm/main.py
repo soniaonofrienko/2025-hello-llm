@@ -310,34 +310,32 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             list[str]: Model predictions as strings
         """
-        torch.manual_seed(42)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(42)
-
         reviews = [item[0] for item in sample_batch]
+
+        if not sample_batch or self._model is None:
+            return []
 
         inputs = self._tokenizer(
             reviews,
             padding=True,
             truncation=True,
-            max_length=self._input_max_length,
+            max_length=self._max_length,
             return_tensors="pt"
-        ).to(self._device)
-
-        outputs = self._model.generate(
-            **inputs,
-            max_new_tokens=self._max_length,
-            num_beams=4,
-            early_stopping=True
         )
 
-        predictions: list[str] = self._tokenizer.batch_decode(
+        inputs = {key: value.to(self._device) for key, value in inputs.items()}
+
+        outputs = self._model.generate(
+        **inputs,
+        max_length=self._max_length)
+
+        predictions = self._tokenizer.batch_decode(
             outputs,
-            skip_special_tokens=True
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True
         )
 
         return predictions
-
 
 class TaskEvaluator(AbstractTaskEvaluator):
     """

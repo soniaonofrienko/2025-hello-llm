@@ -249,9 +249,6 @@ class LLMPipeline(AbstractLLMPipeline):
         
         if self._model is None:
             return {}
-    
-        from torchinfo import summary
-        from torch.nn import Module
         
         if hasattr(self._model.config, 'max_position_embeddings'):
             max_context_length = self._model.config.max_position_embeddings

@@ -17,12 +17,12 @@ import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
 from torchinfo import summary
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer, EncoderDecoderModel
 
 from core_utils.llm.llm_pipeline import AbstractLLMPipeline
 from core_utils.llm.metrics import Metrics
 from core_utils.llm.raw_data_importer import AbstractRawDataImporter
-from core_utils.llm.raw_data_preprocessor import AbstractRawDataPreprocessor
+from core_utils.llm.raw_data_preprocessor import AbstractRawDataPreprocessor, ColumnNames
 from core_utils.llm.task_evaluator import AbstractTaskEvaluator
 from core_utils.llm.time_decorator import report_time
 from core_utils.project.lab_settings import LabSettings
@@ -71,7 +71,7 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
 
     def __init__(self, raw_data: pd.DataFrame) -> None:
         super().__init__(raw_data)
-        self._preprocessed_data: pd.DataFrame | None = None
+        self._data: pd.DataFrame | None = None
 
     def analyze(self) -> dict:
         """
@@ -81,7 +81,7 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
             dict: Dataset key properties
         """
 
-        df = self._preprocessed_data if self._preprocessed_data is not None else self._raw_data
+        df = self._data if self._data is not None else self._raw_data
 
         text_column = "Reviews" if "Reviews" in df.columns else (
             "source" if "source" in df.columns else df.columns[0]
@@ -106,18 +106,19 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
 
         df = self._raw_data.copy()
 
-        # пропуски
         df = df.dropna(subset=["Reviews", "Summary"])
 
-        # дубликаты и лишние пробелы
         df["Reviews"] = df["Reviews"].str.strip()
         df["Summary"] = df["Summary"].str.strip()
         df = df.drop_duplicates()
 
-        df = df.rename(columns={"Reviews": "source", "Summary": "target"})
-
+        df = df.rename(columns={
+            "Reviews": ColumnNames.SOURCE.value,
+            "Summary": ColumnNames.TARGET.value
+        })
+        
         df = df.reset_index(drop=True)
-        self._preprocessed_data = df
+        self._data = df
 
 
 class TaskDataset(Dataset):
@@ -132,7 +133,7 @@ class TaskDataset(Dataset):
         Args:
             data (pandas.DataFrame): Original data
         """
-        self._data = data.reset_index(drop=True)
+        self._data = data
 
     def __len__(self) -> int:
         """
@@ -154,7 +155,7 @@ class TaskDataset(Dataset):
             tuple[str, ...]: The item to be received
         """
         row = self._data.iloc[index]
-        return (str(row["source"]), str(row["target"]))
+        return str(row[ColumnNames.SOURCE.value]), str(row[ColumnNames.TARGET.value])
 
     @property
     def data(self) -> pd.DataFrame:
@@ -187,24 +188,14 @@ class LLMPipeline(AbstractLLMPipeline):
             batch_size (int): The size of the batch inside DataLoader
             device (str): The device for inference
         """
-        super().__init__(
-            model_name=model_name,
-            dataset=dataset,
-            max_length=max_length,
-            batch_size=batch_size
-        )
-        self._dataset: TaskDataset = dataset
-        self._model_name = model_name
-        self._dataset = dataset
-        self._max_length = max_length
-        self._input_max_length = 512
-        self._batch_size = batch_size
-        self._device = device
+        super().__init__(model_name, dataset, max_length, batch_size, device)
 
+        model_config = AutoConfig.from_pretrained(model_name)
         self._tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self._model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        self._model = EncoderDecoderModel.from_pretrained(model_name, config=model_config)
         self._model = self._model.to(device)
         self._model.eval()
+        self._input_max_length = 512
 
         self._dataloader = DataLoader(
             dataset,
@@ -220,48 +211,37 @@ class LLMPipeline(AbstractLLMPipeline):
                 dict: Properties of a model
         """
 
-        if isinstance(self._dataset, TaskDataset):
-            dummy_text = self._dataset[0][0]
-        else:
-            dummy_text = "dummy text"
-        dummy_inputs = self._tokenizer(
-            dummy_text,
-            return_tensors="pt"
-        ).to(self._device)
-
-        dummy_inputs["decoder_input_ids"] = dummy_inputs["input_ids"]
-
-        total_params = 0
-        trainable_params = 0
+        config = self._model.config
+        
+        vocab_size = len(self._tokenizer) if hasattr(self._tokenizer, '__len__') else config.vocab_size
+        embedding_size = config.hidden_size if hasattr(config, 'hidden_size') else 0
+        max_context_length = config.max_position_embeddings if hasattr(config, 'max_position_embeddings') else 512
 
         try:
-            if self._model is None:
-                raise RuntimeError("Model is not initialized")
-
+            from torchinfo import summary
+            dummy_input = torch.ones(1, self._input_max_length, dtype=torch.long).to(self._device)
+            
             model_stats = summary(
-                self._model,  # type: ignore[arg-type]
-                input_data=dummy_inputs,
+                self._model,
+                input_data=dummy_input,
                 device=self._device,
-                verbose=0
+                verbose=0,
             )
-
-            total_params = getattr(model_stats, 'total_params', 0)
-            trainable_params = getattr(model_stats,
-                                       'total_trainable_params', 0)
-        except (RuntimeError, AttributeError, TypeError) as e:
-            print(f"Note: torchinfo fallback due to model architecture ({e})")
+            total_params = model_stats.total_params
+            trainable_params = model_stats.trainable_params
+        except (RuntimeError, ValueError, AttributeError, TypeError) as e:
+            print(f"Note: torchinfo fallback due to model architecture,{e}")
             total_params = sum(p.numel() for p in self._model.parameters())
-            trainable_params = sum(p.numel() for p in self._model.parameters()
-                                   if p.requires_grad)
+            trainable_params = sum(p.numel() for p in self._model.parameters() if p.requires_grad)
 
         return {
-            "model_name": str(self._model_name),
-            "total_parameters": int(total_params),
-            "trainable_parameters": int(trainable_params),
-            "device": str(self._device),
-            "max_length": int(self._max_length),
-            "batch_size": int(self._batch_size),
-            "dataset_size": int(len(self._dataset)) if hasattr(self._dataset, '__len__') else 0,
+            "input_shape": [1, self._input_max_length],
+            "embedding_size": int(embedding_size),
+            "output_shape": [1, self._max_length],
+            "num_trainable_params": int(trainable_params),
+            "vocab_size": int(vocab_size),
+            "size": int(total_params),
+            "max_context_length": int(max_context_length),
         }
 
     @report_time
@@ -289,16 +269,18 @@ class LLMPipeline(AbstractLLMPipeline):
         Returns:
             pd.DataFrame: Data with predictions
         """
-        all_predictions = []
 
-        for batch in self._dataloader:
-            predictions = self._infer_batch(batch)
-            all_predictions.extend(predictions)
+        predictions, references = [], []
+        
+        for batch in DataLoader(self._dataset, batch_size=self._batch_size):
+            predictions.extend(self._infer_batch(batch))
+            references.extend(list(batch[1]))
+        
 
-        result_df = self._dataset.data.copy()
-        result_df["predictions"] = all_predictions[:len(result_df)]
-
-        return result_df
+        return pd.DataFrame({
+            ColumnNames.TARGET.value: references,
+            ColumnNames.PREDICTION.value: predictions
+        })
 
     @torch.no_grad()
     def _infer_batch(

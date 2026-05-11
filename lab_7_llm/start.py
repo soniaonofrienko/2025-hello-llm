@@ -2,7 +2,6 @@
 Starter for demonstration of laboratory work.
 """
 # pylint: disable=protected-access
-# import sys
 from pathlib import Path
 
 from core_utils.llm.metrics import Metrics
@@ -33,16 +32,15 @@ def main() -> None:
     preprocessor = RawDataPreprocessor(raw_data=importer._raw_data)
     preprocessor.transform()
 
-    assert preprocessor._preprocessed_data is not None, \
-        "Preprocessed data is None"
+    assert preprocessor._data is not None, "Preprocessed data is None"
 
-    dataset = TaskDataset(preprocessor._preprocessed_data)
+    dataset = TaskDataset(preprocessor._data)
 
     pipeline = LLMPipeline(
         model_name=settings.parameters.model,
         dataset=dataset,
-        max_length=50,
-        batch_size=2,
+        max_length=120,
+        batch_size=1,
         device="cpu"
     )
 

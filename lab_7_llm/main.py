@@ -275,10 +275,18 @@ class LLMPipeline(AbstractLLMPipeline):
 
         predictions, references = [], []
         
-        for batch in DataLoader(self._dataset, batch_size=self._batch_size):
-            predictions.extend(self._infer_batch(batch))
-            references.extend(list(batch[1]))
-        
+        # for batch in DataLoader(self._dataset, batch_size=self._batch_size):
+        #     predictions.extend(self._infer_batch(batch))
+        #     references.extend(list(batch[1]))
+        for i in range(len(self._dataset)):
+            sample = self._dataset[i]
+            source_text = sample[0]
+            target_text = sample[1]
+
+            pred = self._infer_batch([(source_text,)])[0]
+
+            predictions.append(pred)
+            references.append(target_text)
 
         return pd.DataFrame({
             ColumnNames.TARGET.value: references,

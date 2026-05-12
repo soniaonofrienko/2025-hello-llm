@@ -4,6 +4,8 @@ Laboratory work.
 Fine-tuning Large Language Models for a downstream task.
 """
 
+import re
+
 # pylint: disable=too-few-public-methods, undefined-variable, duplicate-code, unused-argument, too-many-arguments
 from pathlib import Path
 from typing import Callable, cast, Iterable, Sequence
@@ -18,7 +20,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchinfo import summary
 from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
 
-
 from core_utils.llm.llm_pipeline import AbstractLLMPipeline
 from core_utils.llm.metrics import Metrics
 from core_utils.llm.raw_data_importer import AbstractRawDataImporter
@@ -26,8 +27,7 @@ from core_utils.llm.raw_data_preprocessor import AbstractRawDataPreprocessor, Co
 from core_utils.llm.sft_pipeline import AbstractSFTPipeline
 from core_utils.llm.task_evaluator import AbstractTaskEvaluator
 from core_utils.llm.time_decorator import report_time
-from core_utils.project.lab_settings import SFTParams
-from core_utils.project.lab_settings import LabSettings
+from core_utils.project.lab_settings import LabSettings, SFTParams
 
 current_path = Path(__file__).parent
 settings = LabSettings(current_path / "settings.json")
@@ -360,21 +360,23 @@ class LLMPipeline(AbstractLLMPipeline):
             pd.DataFrame: Data with predictions
         """
         predictions, references = [], []
-
         for sample in self._dataset:
             source_text = sample[0]
             target_text = sample[1]
-
-            pred = self._infer_batch([(source_text,)])[0]
-
-            predictions.append(pred)
-            references.append(target_text)
+            
+        target_str = str(target_text)
+        numbers = re.findall(r'\d+', target_str)
+        target_int = int(numbers[0]) if numbers else 0
+        
+        pred = self._infer_batch([(source_text,)])[0]
+        
+        predictions.append(pred)
+        references.append(target_int)
 
         return pd.DataFrame({
             ColumnNames.TARGET.value: references,
             ColumnNames.PREDICTION.value: predictions
         })
-
     @torch.no_grad()
     def _infer_batch(self, sample_batch: Sequence[tuple[str, ...]]) -> list[str]:
         """
@@ -448,13 +450,12 @@ class TaskEvaluator(AbstractTaskEvaluator):
             
             refs = []
             for val in data[ColumnNames.TARGET.value]:
-                if isinstance(val, str) and val.startswith('('):
-                    clean = val.strip('(), ')
-                    refs.append(int(clean))
-                elif isinstance(val, tuple):
-                    refs.append(int(val[0]))
+                val_str = str(val)
+                numbers = re.findall(r'\d+', val_str)
+                if numbers:
+                    refs.append(int(numbers[0]))
                 else:
-                    refs.append(int(val))
+                    refs.append(0)
             
             metric_result = metric_fn.compute(
                 predictions=preds,

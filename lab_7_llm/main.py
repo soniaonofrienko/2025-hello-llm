@@ -247,7 +247,7 @@ class LLMPipeline(AbstractLLMPipeline):
             verbose=0
         )
 
-        result = {
+        return {
             "input_shape": [1, embedding_size],
             "embedding_size": embedding_size,
             "output_shape": [1, embedding_size, self._tokenizer.vocab_size],
@@ -256,10 +256,6 @@ class LLMPipeline(AbstractLLMPipeline):
             "size": stats_summary.total_param_bytes,
             "max_context_length": self._model.config.max_length
         }
-
-        print(result)
-
-        return result
 
     @report_time
     def infer_sample(self, sample: tuple[str, ...]) -> str | None:

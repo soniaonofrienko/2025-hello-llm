@@ -15,6 +15,7 @@ import evaluate
 import pandas as pd
 import torch
 from datasets import load_dataset
+from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 from torchinfo import summary
 from transformers import AutoConfig, AutoTokenizer, EncoderDecoderModel
@@ -226,7 +227,6 @@ class LLMPipeline(AbstractLLMPipeline):
         embedding_size = self._model.config.encoder.max_position_embeddings
         vocab_size = self._tokenizer.vocab_size
 
-
         input_ids = torch.ones((1, max_context_length), dtype=torch.long).to(self._device)
         attention_mask = torch.ones((1, max_context_length), dtype=torch.long).to(self._device)
         decoder_input_ids = torch.ones((1, max_context_length), dtype=torch.long).to(self._device)
@@ -237,8 +237,11 @@ class LLMPipeline(AbstractLLMPipeline):
             "decoder_input_ids": decoder_input_ids
         }
 
+        if not isinstance(self._model, Module):
+            raise ValueError("The model has incompatible type")
+
         stats_summary = summary(
-            self._model, # type: ignore[arg-type]
+            self._model,
             input_data=tokens,
             device=self._device,
             verbose=0

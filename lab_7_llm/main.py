@@ -92,8 +92,16 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
             "dataset_columns": int(len(df.columns)),
             "dataset_duplicates": int(df.duplicated().sum()),
             "dataset_empty_rows": int(df.isna().all(axis=1).sum()),
-            "dataset_sample_min_len": int(df[text_column].str.len().min()) if text_column in df.columns else 0,
-            "dataset_sample_max_len": int(df[text_column].str.len().max()) if text_column in df.columns else 0,
+            "dataset_sample_min_len": (
+                int(df[text_column].str.len().min())
+                if text_column in df.columns
+                else 0
+            ),
+            "dataset_sample_max_len": (
+                int(df[text_column].str.len().max())
+                if text_column in df.columns
+                else 0
+            ),
         }
 
         return analysis
@@ -116,7 +124,7 @@ class RawDataPreprocessor(AbstractRawDataPreprocessor):
             "Reviews": ColumnNames.SOURCE.value,
             "Summary": ColumnNames.TARGET.value
         })
-        
+
         df = df.reset_index(drop=True)
         self._data = df
 
@@ -177,7 +185,7 @@ class LLMPipeline(AbstractLLMPipeline):
         self, model_name: str, dataset: TaskDataset, max_length: int,
         batch_size: int, device: str
     ) -> None:
-        
+
         """
         Initialize an instance.
 
@@ -213,9 +221,7 @@ class LLMPipeline(AbstractLLMPipeline):
 
         if self._model is None:
             return {}
-        
-        config = self._model.config
-        
+
         max_context_length = self._model.config.max_length
         embedding_size = self._model.config.encoder.max_position_embeddings
         vocab_size = self._tokenizer.vocab_size
@@ -224,7 +230,7 @@ class LLMPipeline(AbstractLLMPipeline):
         input_ids = torch.ones((1, max_context_length), dtype=torch.long).to(self._device)
         attention_mask = torch.ones((1, max_context_length), dtype=torch.long).to(self._device)
         decoder_input_ids = torch.ones((1, max_context_length), dtype=torch.long).to(self._device)
-        
+
         tokens = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
@@ -279,10 +285,7 @@ class LLMPipeline(AbstractLLMPipeline):
         """
 
         predictions, references = [], []
-        
-        # for batch in DataLoader(self._dataset, batch_size=self._batch_size):
-        #     predictions.extend(self._infer_batch(batch))
-        #     references.extend(list(batch[1]))
+
         for i in range(len(self._dataset)):
             sample = self._dataset[i]
             source_text = sample[0]

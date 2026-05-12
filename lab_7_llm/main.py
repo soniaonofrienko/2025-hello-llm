@@ -9,7 +9,7 @@ Working with Large Language Models.
 # protected-access, no-any-return
 
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import cast, Iterable, Sequence
 
 import evaluate
 import pandas as pd
@@ -337,7 +337,7 @@ class LLMPipeline(AbstractLLMPipeline):
             clean_up_tokenization_spaces=True
         )
 
-        return predictions # type: ignore[return-value]
+        return cast(list[str], predictions)
 
 class TaskEvaluator(AbstractTaskEvaluator):
     """

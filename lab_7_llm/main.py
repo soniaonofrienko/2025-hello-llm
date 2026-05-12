@@ -238,7 +238,7 @@ class LLMPipeline(AbstractLLMPipeline):
         }
 
         stats_summary = summary(
-            self._model,
+            self._model, # type: ignore[arg-type]
             input_data=tokens,
             device=self._device,
             verbose=0
@@ -286,8 +286,7 @@ class LLMPipeline(AbstractLLMPipeline):
 
         predictions, references = [], []
 
-        for i in range(len(self._dataset)):
-            sample = self._dataset[i]
+        for sample in self._dataset:
             source_text = sample[0]
             target_text = sample[1]
 
@@ -338,7 +337,7 @@ class LLMPipeline(AbstractLLMPipeline):
             clean_up_tokenization_spaces=True
         )
 
-        return predictions
+        return predictions # type: ignore[return-value]
 
 class TaskEvaluator(AbstractTaskEvaluator):
     """
